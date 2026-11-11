@@ -304,6 +304,7 @@ public sealed class CpuDispatcher : ICpuDispatcher, IDisposable
         _nativeCpuBackend ??= new DirectExecutionBackend(_moduleManager);
         // Let backend stall reports reference the same frame as entry.
         (_nativeCpuBackend as DirectExecutionBackend)?.SetActiveDebugFrame(debugFrame);
+        (_nativeCpuBackend as DirectExecutionBackend)?.SetEntryReturnWaitsForBlockedThreads(frameKind == EntryFrameKind.ProcessEntry);
         if (_nativeCpuBackend.TryExecute(
                 context,
                 entryPoint,

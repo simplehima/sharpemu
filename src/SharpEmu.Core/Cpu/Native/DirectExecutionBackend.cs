@@ -286,6 +286,7 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 	private ICpuDebugHook? _debugHook;
 
 	private ICpuDebugFrame? _activeDebugFrame;
+	private bool _entryReturnWaitsForBlockedThreads = true;
 
 	[ThreadStatic]
 	private static DirectExecutionBackend? _activeExecutionBackend;
@@ -994,6 +995,11 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 	/// entry. Set to null when no debugger is attached.
 	/// </summary>
 	internal void SetActiveDebugFrame(ICpuDebugFrame? frame) => _activeDebugFrame = frame;
+
+	// A module initializer (DT_INIT) returns before the process entry has run, so threads it
+	// spawned can legitimately stay blocked until that entry signals them. Only a process
+	// entry may wait for blocked threads to finish.
+	internal void SetEntryReturnWaitsForBlockedThreads(bool waits) => _entryReturnWaitsForBlockedThreads = waits;
 
 	/// <summary>
 	/// Notifies an attached debugger of a detected execution stall. No-op when no
@@ -4426,7 +4432,7 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 		return wakeCount;
 	}
 
-	private void PumpUntilGuestThreadsIdle(CpuContext callerContext, string reason)
+	private void PumpUntilGuestThreadsIdle(CpuContext callerContext, string reason, bool waitForBlockedThreads = true)
 	{
 		var nextSnapshotTimestamp = Stopwatch.GetTimestamp() + Stopwatch.Frequency;
 		while (!ActiveForcedGuestExit)
@@ -4449,6 +4455,12 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 
 			if (!hasRunningThread && !hasBlockedThread)
 			{
+				return;
+			}
+
+			if (!waitForBlockedThreads && !hasRunningThread)
+			{
+				// Everything left is blocked and only guest code that has not started yet can wake it.
 				return;
 			}
 
@@ -6984,7 +6996,7 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 				// callback.
 				if (!ActiveForcedGuestExit)
 				{
-					PumpUntilGuestThreadsIdle(context, "entry_return");
+					PumpUntilGuestThreadsIdle(context, "entry_return", _entryReturnWaitsForBlockedThreads);
 				}
 			}
 			catch (AccessViolationException ex)
