@@ -287,6 +287,7 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 
 	private ICpuDebugFrame? _activeDebugFrame;
 	private bool _entryReturnWaitsForBlockedThreads = true;
+	private bool _preserveGuestThreadsOnNextExecute;
 
 	[ThreadStatic]
 	private static DirectExecutionBackend? _activeExecutionBackend;
@@ -1001,6 +1002,11 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 	// entry may wait for blocked threads to finish.
 	internal void SetEntryReturnWaitsForBlockedThreads(bool waits) => _entryReturnWaitsForBlockedThreads = waits;
 
+	// The threads a module initializer left blocked (for example a worker pool waiting for its first
+	// job) belong to the same session as the process entry that follows; the next frame must not
+	// tear them down.
+	internal void SetPreserveGuestThreadsOnNextExecute(bool preserve) => _preserveGuestThreadsOnNextExecute = preserve;
+
 	/// <summary>
 	/// Notifies an attached debugger of a detected execution stall. No-op when no
 	/// debugger is attached or no frame is bound. The debugger may block here to
@@ -1272,7 +1278,15 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 		{
 			_prtLazyCommitRanges.Clear();
 		}
-		ClearGuestThreads();
+		if (_preserveGuestThreadsOnNextExecute)
+		{
+			_preserveGuestThreadsOnNextExecute = false;
+		}
+		else
+		{
+			ClearGuestThreads();
+		}
+
 		_contextualUnresolvedReturnSites.Clear();
 		_stallWatchdogTriggered = 0;
 		_stallWatchdogStop = false;
@@ -4290,11 +4304,21 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 					!thread.HasBlockedContinuation ||
 					!string.Equals(wakeKey, thread.BlockWakeKey, StringComparison.Ordinal))
 				{
+					if (_logGuestThreads && string.Equals(wakeKey, thread.BlockWakeKey, StringComparison.Ordinal))
+					{
+						Console.Error.WriteLine($"[LOADER][INFO] guest_threads.wake_skipped key={wakeKey} thread='{thread.Name}' handle=0x{thread.ThreadHandle:X16} state={thread.State} continuation={thread.HasBlockedContinuation}");
+					}
+
 					continue;
 				}
 
 				if (thread.BlockWaiter is not null && !thread.BlockWaiter.TryWake())
 				{
+					if (_logGuestThreads)
+					{
+						Console.Error.WriteLine($"[LOADER][INFO] guest_threads.wake_refused key={wakeKey} thread='{thread.Name}' handle=0x{thread.ThreadHandle:X16}");
+					}
+
 					continue;
 				}
 
