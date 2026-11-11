@@ -1027,6 +1027,7 @@ public static class AmprExports
         {
             foreach (var commandEntry in remaining)
             {
+                TraceAmpr(ctx, "deferred_cmd", commandBuffer, (ulong)commandEntry.Kind, (ulong)commandEntry.Index);
                 switch (commandEntry.Kind)
                 {
                     case 0:
@@ -1050,9 +1051,17 @@ public static class AmprExports
                         }
                         break;
                     case 3:
-                        if (WaitForAddress(ctx, waitAddressCommands[commandEntry.Index]) != (int)OrbisGen2Result.ORBIS_GEN2_OK)
                         {
-                            return;
+                            var deferredWait = waitAddressCommands[commandEntry.Index];
+                            _ = ctx.TryReadUInt64(deferredWait.Address, out var before);
+                            TraceAmpr(ctx, "deferred_wait_begin", commandBuffer, deferredWait.Address, before);
+                            if (WaitForAddress(ctx, deferredWait) != (int)OrbisGen2Result.ORBIS_GEN2_OK)
+                            {
+                                return;
+                            }
+
+                            _ = ctx.TryReadUInt64(deferredWait.Address, out var after);
+                            TraceAmpr(ctx, "deferred_wait_released", commandBuffer, deferredWait.Address, after);
                         }
                         break;
                 }
@@ -2004,5 +2013,10 @@ public static class AmprExports
         _ = ctx.TryReadUInt64(ctx[CpuRegister.Rsp], out returnRip);
         Console.Error.WriteLine(
             $"[LOADER][TRACE] ampr.read_file: cmd=0x{commandBuffer:X16} id=0x{fileId:X8} dst=0x{destination:X16} size=0x{size:X16} offset=0x{fileOffset:X16} read=0x{bytesRead:X16} result=0x{result:X8} path='{hostPath ?? string.Empty}' ret=0x{returnRip:X16}");
+        var head = new byte[32];
+        if (bytesRead != 0 && ctx.Memory.TryRead(destination, head))
+        {
+            Console.Error.WriteLine($"[LOADER][TRACE] ampr.read_head: {Convert.ToHexString(head)}");
+        }
     }
 }
