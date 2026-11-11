@@ -7080,6 +7080,17 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 
 	private void StartStallWatchdog()
 	{
+		// Diagnostic: SHARPEMU_DUMP_THREADS_SECONDS=N prints the stall snapshot (all guest threads) once after N seconds.
+		if (int.TryParse(Environment.GetEnvironmentVariable("SHARPEMU_DUMP_THREADS_SECONDS"), out var dumpThreadsSeconds) && dumpThreadsSeconds > 0)
+		{
+			new Thread(() =>
+			{
+				Thread.Sleep(dumpThreadsSeconds * 1000);
+				LogStallWatchdogSnapshot();
+			})
+			{ IsBackground = true, Name = "ThreadDump" }.Start();
+		}
+
 		int stallWatchdogSeconds = GetStallWatchdogSeconds();
 		if (stallWatchdogSeconds <= 0 || _stallWatchdogThread != null)
 		{
