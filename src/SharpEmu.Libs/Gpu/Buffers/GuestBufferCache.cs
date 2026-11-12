@@ -206,6 +206,11 @@ public sealed unsafe partial class GuestBufferCache : IGuestBufferStore, IDispos
     bool IGuestBufferStore.MarkCpuWrite(ulong address, ulong size)
     {
         var tracked = _tracker.InvalidateRegion(address, size, out var needsGpuFlush);
+        if (needsGpuFlush)
+        {
+            CpuWriteReadbackReport.Record(address, size);
+        }
+
         var completed = !needsGpuFlush || ReadMemoryOrAwaitShutdown(address, size, isWrite: true,
             GuestMemoryProfile.ReadbackSource.CpuWriteInvalidation);
         if (GuestGpuMemoryHook.Traces(address, size))

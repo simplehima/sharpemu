@@ -7115,6 +7115,39 @@ public sealed unsafe partial class DirectExecutionBackend : INativeCpuBackend, I
 			{ IsBackground = true, Name = "ThreadDump" }.Start();
 		}
 
+		// Diagnostic: SHARPEMU_PEEK_GUEST_U32=0xADDR[,0xADDR...] logs a guest dword whenever its value changes.
+		if (Environment.GetEnvironmentVariable("SHARPEMU_PEEK_GUEST_U32") is { Length: > 0 } peekList)
+		{
+			var peekAddresses = peekList
+				.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+				.Select(text => ulong.TryParse(text.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? text[2..] : text,
+					System.Globalization.NumberStyles.HexNumber, null, out var address) ? address : 0UL)
+				.Where(address => address != 0)
+				.ToArray();
+			new Thread(() =>
+			{
+				var last = new uint?[peekAddresses.Length];
+				while (!_stallWatchdogStop)
+				{
+					Thread.Sleep(20);
+					if (_cpuContext is not { } peekContext)
+					{
+						continue;
+					}
+
+					for (var index = 0; index < peekAddresses.Length; index++)
+					{
+						if (peekContext.TryReadUInt32(peekAddresses[index], out var value) && last[index] != value)
+						{
+							Console.Error.WriteLine($"[PEEK] 0x{peekAddresses[index]:X} = 0x{value:X8}");
+							last[index] = value;
+						}
+					}
+				}
+			})
+			{ IsBackground = true, Name = "GuestPeek" }.Start();
+		}
+
 		int stallWatchdogSeconds = GetStallWatchdogSeconds();
 		if (stallWatchdogSeconds <= 0 || _stallWatchdogThread != null)
 		{
