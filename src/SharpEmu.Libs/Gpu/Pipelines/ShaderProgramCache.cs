@@ -445,7 +445,7 @@ internal sealed class ShaderProgramCache
         }
         catch (ShaderProgramRejectedException exception)
         {
-            if (strictShaders)
+            if (strictShaders && !exception.Transient)
             {
                 throw SubmissionScheduler.Fatal(exception.Message);
             }
@@ -457,7 +457,11 @@ internal sealed class ShaderProgramCache
         }
     }
 
-    private sealed class ShaderProgramRejectedException(string message) : Exception(message);
+    // Transient: the failure came from guest memory read mid-update, so strict mode still skips the draw.
+    private sealed class ShaderProgramRejectedException(string message, bool transient = false) : Exception(message)
+    {
+        public bool Transient { get; } = transient;
+    }
 
     private sealed class ShaderProgramPendingException() : Exception("The linked program is still being prepared.");
 
@@ -483,7 +487,7 @@ internal sealed class ShaderProgramCache
         }
         catch (ShaderProgramRejectedException exception)
         {
-            if (strictShaders)
+            if (strictShaders && !exception.Transient)
             {
                 throw SubmissionScheduler.Fatal(exception.Message);
             }
@@ -617,9 +621,10 @@ internal sealed class ShaderProgramCache
             if (!materialized)
             {
                 var message = $"The shader resources could not be materialized: stage={source.Label} hash=0x{source.Hash:X16} shader=0x{source.Address:X16} reason={materializationFailure}.";
-                if (materializationFailure is ResourceMaterializationFailure.IncompatibleImageCandidates or ResourceMaterializationFailure.ImageCapacityExceeded
-                    or ResourceMaterializationFailure.UnsupportedAtomicImageFormat)
+                if (materializationFailure is ResourceMaterializationFailure.IncompatibleImageCandidates or ResourceMaterializationFailure.ImageCapacityExceeded)
                     throw new ShaderProgramRejectedException(message);
+                if (materializationFailure is ResourceMaterializationFailure.UnsupportedAtomicImageFormat)
+                    throw new ShaderProgramRejectedException(message, transient: true);
                 throw SubmissionScheduler.Fatal(message);
             }
         }
