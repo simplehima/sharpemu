@@ -197,7 +197,7 @@ public sealed class GuestGpuMemory : IDisposable
 
         if (Buffers is { } buffers && buffers.MayHoldGpuData(address, size))
         {
-            _ = buffers.MarkCpuWrite(address, size);
+            _ = buffers.MarkCpuWriteOverwriting(address, size);
         }
 
         _ = Images?.MarkCpuWrite(address, size);
