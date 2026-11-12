@@ -50,12 +50,13 @@ public sealed partial class RenderExecutor
         }
 
         var mode = context.RasterMode;
-        if (mode.FrontPolygonType is not (0 or 2))
+        // POLY_MODE 0 draws filled triangles whatever the per-face polygon types say.
+        if (mode.PolygonMode != 0 && mode.FrontPolygonType is not (0 or 2))
         {
             throw _host.Fatal($"The front polygon type is not supported: type={mode.FrontPolygonType}.");
         }
 
-        if (mode.BackPolygonType is not (0 or 2))
+        if (mode.PolygonMode != 0 && mode.BackPolygonType is not (0 or 2))
         {
             throw _host.Fatal($"The back polygon type is not supported: type={mode.BackPolygonType}.");
         }
