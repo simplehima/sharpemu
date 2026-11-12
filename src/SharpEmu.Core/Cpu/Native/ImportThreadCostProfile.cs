@@ -26,6 +26,10 @@ internal static class ImportThreadCostProfile
         public readonly object Gate = new();
     }
 
+    // SHARPEMU_PROFILE_THREAD_HLE_TOP=N lists the N costliest imports per thread (default 8).
+    private static readonly int TopImports =
+        int.TryParse(Environment.GetEnvironmentVariable("SHARPEMU_PROFILE_THREAD_HLE_TOP"), out var top) && top > 0 ? top : 8;
+
     private static readonly ConcurrentDictionary<int, ThreadCosts> _threads = new();
     private static long _windowStart = Stopwatch.GetTimestamp();
     private static int _reporting;
@@ -68,7 +72,7 @@ internal static class ImportThreadCostProfile
                     calls = thread.Calls;
                     thread.TotalTicks = 0;
                     thread.Calls = 0;
-                    top = thread.PerImport.OrderByDescending(p => p.Value.Ticks).Take(8).ToList();
+                    top = thread.PerImport.OrderByDescending(p => p.Value.Ticks).Take(TopImports).ToList();
                     thread.PerImport.Clear();
                 }
 

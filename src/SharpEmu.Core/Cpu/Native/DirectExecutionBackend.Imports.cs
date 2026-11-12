@@ -369,6 +369,10 @@ public sealed partial class DirectExecutionBackend
 			return 18446744071562199042uL;
 		}
 		ImportStubEntry importStubEntry = _importEntries[importIndex];
+		if (SharpEmu.HLE.Diagnostics.GuestImportCallSite.Enabled)
+		{
+			SharpEmu.HLE.Diagnostics.GuestImportCallSite.Enter(*(ulong*)(argPackPtr + 96), importStubEntry.Export?.Name ?? importStubEntry.Nid);
+		}
 		TraceImportAddressProbe(cpuContext, importStubEntry, argPackPtr);
 		using var registerPacketImport = SharpEmu.Libs.Diagnostics.AgcRegisterPacketProfile.MeasureImport(importStubEntry.Nid);
 		if (_perfHleHistogram)
