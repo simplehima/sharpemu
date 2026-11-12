@@ -33,7 +33,9 @@ public sealed class CommandStreamQueue
     public const int AllBlockedRetryMilliseconds = 100;
     // One boundary may run ahead; explicit zero keeps the synchronous diagnostic mode.
     public static readonly int DefaultBoundariesInFlight =
-        Environment.GetEnvironmentVariable("SHARPEMU_SUSPEND_POINTS_IN_FLIGHT") == "0" ? 0 : 1;
+        int.TryParse(Environment.GetEnvironmentVariable("SHARPEMU_SUSPEND_POINTS_IN_FLIGHT"), out var inFlight)
+            ? Math.Clamp(inFlight, 0, 8)
+            : 1;
 
     private readonly ICommandStreamHost _host;
     private readonly object _gate = new();
