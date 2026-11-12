@@ -302,6 +302,19 @@ public sealed class CommandStreamQueue
     // Waits until a submission can run or the timeout passes; returns whether one can run.
     public bool WaitForWork(int timeoutMilliseconds)
     {
+        var timelineStart = SharpEmu.HLE.Diagnostics.FrameTimeline.Begin();
+        try
+        {
+            return WaitForWorkCore(timeoutMilliseconds);
+        }
+        finally
+        {
+            SharpEmu.HLE.Diagnostics.FrameTimeline.End(timelineStart, "cmd:idle (no work)", 50);
+        }
+    }
+
+    private bool WaitForWorkCore(int timeoutMilliseconds)
+    {
         lock (_gate)
         {
             if (HasRunnableWorkLocked() || _stopping)
@@ -412,6 +425,19 @@ public sealed class CommandStreamQueue
 
     // Runs one slice of the next unblocked submission on the calling thread.
     public SliceResult ProcessOne()
+    {
+        var timelineStart = SharpEmu.HLE.Diagnostics.FrameTimeline.Begin();
+        try
+        {
+            return ProcessOneCore();
+        }
+        finally
+        {
+            SharpEmu.HLE.Diagnostics.FrameTimeline.End(timelineStart, "cmd:interpret DCB slice", 20);
+        }
+    }
+
+    private SliceResult ProcessOneCore()
     {
         CommandSubmission? submission = null;
         ControlBarrier? control = null;

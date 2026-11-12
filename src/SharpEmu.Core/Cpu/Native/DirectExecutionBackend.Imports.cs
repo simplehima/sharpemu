@@ -79,7 +79,12 @@ public sealed partial class DirectExecutionBackend
 				return costResult;
 			}
 
+			var timelineStart = SharpEmu.HLE.Diagnostics.FrameTimeline.Begin();
 			var result = directExecutionBackend.DispatchImport(importIndex, argPackPtr);
+			if (timelineStart != 0)
+			{
+				SharpEmu.HLE.Diagnostics.FrameTimeline.End(timelineStart, directExecutionBackend.ImportDisplayName(importIndex), 15);
+			}
 			directExecutionBackend.ClearActiveImportIndex();
 			CompleteImportContextTransfer(transferStubAddress);
 			return result;
