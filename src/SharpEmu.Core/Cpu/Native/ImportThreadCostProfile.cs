@@ -33,6 +33,9 @@ internal static class ImportThreadCostProfile
     private static readonly ConcurrentDictionary<int, ThreadCosts> _threads = new();
     private static long _windowStart = Stopwatch.GetTimestamp();
     private static int _reporting;
+    private static int _lastGen0, _lastGen1, _lastGen2;
+    private static double _lastPauseMs;
+    private static long _lastAllocated;
 
     [ThreadStatic]
     private static ThreadCosts? _mine;
@@ -60,6 +63,15 @@ internal static class ImportThreadCostProfile
         {
             Interlocked.Exchange(ref _windowStart, now);
             var seconds = (now - started) / (double)Stopwatch.Frequency;
+            var pause = GC.GetTotalPauseDuration().TotalMilliseconds;
+            Console.Error.WriteLine(
+                $"[PERF][GC] window={seconds:F1}s gen0={GC.CollectionCount(0) - _lastGen0} gen1={GC.CollectionCount(1) - _lastGen1} " +
+                $"gen2={GC.CollectionCount(2) - _lastGen2} pause_ms={pause - _lastPauseMs:F0} allocated_mb={(GC.GetTotalAllocatedBytes() - _lastAllocated) / 1048576.0:F0}");
+            _lastGen0 = GC.CollectionCount(0);
+            _lastGen1 = GC.CollectionCount(1);
+            _lastGen2 = GC.CollectionCount(2);
+            _lastPauseMs = pause;
+            _lastAllocated = GC.GetTotalAllocatedBytes();
             foreach (var pair in _threads.OrderByDescending(p => p.Value.TotalTicks).Take(4))
             {
                 var thread = pair.Value;
