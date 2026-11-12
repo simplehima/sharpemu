@@ -43,6 +43,9 @@ public sealed partial class DirectExecutionBackend
     [ThreadStatic]
     private static nint _preparedContextTransferStub;
 
+	private string ImportDisplayName(int index) =>
+		(uint)index < (uint)_importEntries.Length ? _importEntries[index].Export?.Name ?? _importEntries[index].Nid : "?";
+
 	private static unsafe ulong ImportDispatchGatewayManaged(nint backendHandle, int importIndex, nint argPackPtr, nint transferStubAddress)
 	{
         *(nint*)transferStubAddress = 0;
@@ -64,6 +67,16 @@ public sealed partial class DirectExecutionBackend
 				directExecutionBackend.ClearActiveImportIndex();
 				CompleteImportContextTransfer(transferStubAddress);
 				return r;
+			}
+
+			if (ImportThreadCostProfile.Enabled)
+			{
+				var costStart = System.Diagnostics.Stopwatch.GetTimestamp();
+				var costResult = directExecutionBackend.DispatchImport(importIndex, argPackPtr);
+				ImportThreadCostProfile.Record(directExecutionBackend.ImportDisplayName, importIndex, System.Diagnostics.Stopwatch.GetTimestamp() - costStart);
+				directExecutionBackend.ClearActiveImportIndex();
+				CompleteImportContextTransfer(transferStubAddress);
+				return costResult;
 			}
 
 			var result = directExecutionBackend.DispatchImport(importIndex, argPackPtr);
